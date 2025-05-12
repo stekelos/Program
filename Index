@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Προπονητικό Πρόγραμμα Τρεξίματος</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .input-section, .output-section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #218838;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background: #007bff;
+            color: #fff;
+        }
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <h1>Δημιουργία Εβδομαδιαίου Προπονητικού Προγράμματος</h1>
+    <div class="input-section">
+        <h2>Εισαγωγή Δεδομένων</h2>
+        <label for="points">Συνολικοί Πόντοι Εβδομάδας:</label>
+        <input type="number" id="points" placeholder="π.χ. 60" required>
+        <label for="easyPace">Ρυθμός Easy Run (λεπτά/χλμ, π.χ. 5.833):</label>
+        <input type="number" step="0.001" id="easyPace" placeholder="π.χ. 5.833" required>
+        <label for="intervalPace">Ρυθμός Interval (λεπτά/χλμ, π.χ. 4.183):</label>
+        <input type="number" step="0.001" id="intervalPace" placeholder="π.χ. 4.183" required>
+        <label for="repetitionPace">Ρυθμός Repetition (λεπτά/χλμ, π.χ. 3.95):</label>
+        <input type="number" step="0.001" id="repetitionPace" placeholder="π.χ. 3.95" required>
+        <label for="fastRepetitionPace">Ρυθμός Fast Repetition (λεπτά/χλμ, π.χ. 3.583):</label>
+        <input type="number" step="0.001" id="fastRepetitionPace" placeholder="π.χ. 3.583" required>
+        <label for="thresholdPace">Ρυθμός Threshold (λεπτά/χλμ, π.χ. 4.533):</label>
+        <input type="number" step="0.001" id="thresholdPace" placeholder="π.χ. 4.533" required>
+        <label for="intervalPoints">Πόντοι Interval (μέγ. 12):</label>
+        <input type="number" id="intervalPoints" placeholder="π.χ. 12" max="12" required>
+        <label for="repetitionPoints">Πόντοι Repetition (μέγ. 12):</label>
+        <input type="number" id="repetitionPoints" placeholder="π.χ. 0" max="12" required>
+        <label for="fastRepetitionPoints">Πόντοι Fast Repetition (μέγ. 12):</label>
+        <input type="number" id="fastRepetitionPoints" placeholder="π.χ. 0" max="12" required>
+        <button onclick="generateProgram()">Δημιουργία Προγράμματος</button>
+    </div>
+    <div class="output-section" id="output">
+        <h2>Εβδομαδιαίο Πρόγραμμα</h2>
+        <div id="programOutput"></div>
+    </div>
+
+    <script>
+        function generateProgram() {
+            // Λήψη εισόδων
+            const points = parseFloat(document.getElementById('points').value);
+            const easyPace = parseFloat(document.getElementById('easyPace').value);
+            const intervalPace = parseFloat(document.getElementById('intervalPace').value);
+            const repetitionPace = parseFloat(document.getElementById('repetitionPace').value);
+            const fastRepetitionPace = parseFloat(document.getElementById('fastRepetitionPace').value);
+            const thresholdPace = parseFloat(document.getElementById('thresholdPace').value);
+            const intervalPoints = parseFloat(document.getElementById('intervalPoints').value);
+            const repetitionPoints = parseFloat(document.getElementById('repetitionPoints').value);
+            const fastRepetitionPoints = parseFloat(document.getElementById('fastRepetitionPoints').value);
+
+            // Έλεγχος εγκυρότητας
+            if (!points || !easyPace || !intervalPace || !repetitionPace || !fastRepetitionPace || !thresholdPace ||
+                isNaN(intervalPoints) || isNaN(repetitionPoints) || isNaN(fastRepetitionPoints)) {
+                alert('Παρακαλώ συμπληρώστε όλα τα πεδία.');
+                return;
+            }
+            if (intervalPoints > 12 || repetitionPoints > 12 || fastRepetitionPoints > 12) {
+                alert('Οι πόντοι για κάθε ποιοτική προπόνηση δεν πρέπει να υπερβαίνουν τους 12.');
+                return;
+            }
+            if (intervalPoints + repetitionPoints + fastRepetitionPoints > 24) {
+                alert('Το άθροισμα των πόντων για ποιοτικές προπονήσεις δεν πρέπει να υπερβαίνει τους 24.');
+                return;
+            }
+
+            // Υπολογισμοί Long Run
+            const longRunPoints = points * 0.2;
+            const longRunMinutes = longRunPoints / 0.2;
+            const longRunDistance = longRunMinutes / easyPace;
+
+            // Υπολογισμοί Ποιοτικών
+            const qualityDays = [];
+            let totalQualityPoints = 0;
+            if (intervalPoints > 0) {
+                qualityDays.push({
+                    day: 'Τρίτη',
+                    type: 'Interval',
+                    points: intervalPoints,
+                    pace: intervalPace,
+                    pointsPerMinute: 1
+                });
+                totalQualityPoints += intervalPoints + 4; // +4 για ζέσταμα + αποθεραπεία
+            }
+            if (repetitionPoints > 0) {
+                qualityDays.push({
+                    day: 'Πέμπτη',
+                    type: 'Repetition',
+                    points: repetitionPoints,
+                    pace: repetitionPace,
+                    pointsPerMinute: 1.5
+                });
+                totalQualityPoints += repetitionPoints + 4;
+            } else if (fastRepetitionPoints > 0) {
+                qualityDays.push({
+                    day: 'Πέμπτη',
+                    type: 'Fast Repetition',
+                    points: fastRepetitionPoints,
+                    pace: fastRepetitionPace,
+                    pointsPerMinute: 2
+                });
+                totalQualityPoints += fastRepetitionPoints + 4;
+            }
+
+            // Υπολογισμοί Easy Runs
+            const easyDaysPoints = points - longRunPoints - totalQualityPoints;
+            const easyRunPointsPerDay = easyDaysPoints / (7 - qualityDays.length - 1); // -1 για Κυριακή
+            const easyRunMinutes = easyRunPointsPerDay / 0.2;
+            const easyRunDistance = easyRunMinutes / easyPace;
+
+            // Ζέσταμα + Αποθεραπεία
+            const wuCdMinutes = 20; // 10 + 10 λεπτά
+            const wuCdDistance = wuCdMinutes / easyPace;
+
+            // Υπολογισμός υποδιαιρέσεων
+            const qualityWorkouts = qualityDays.map(q => {
+                const minutes = q.points / q.pointsPerMinute;
+                const distance = minutes / q.pace;
+                const totalMeters = distance * 1000;
+
+                // Υποδιαιρέσεις 200μ, 300μ, 400μ
+                let reps200m = Math.floor(totalMeters / 900); // Προσαρμογή για ισορροπία
+                let remainingMeters = totalMeters - reps200m * 200;
+                let reps300m = Math.floor(remainingMeters / 600);
+                remainingMeters -= reps300m * 300;
+                let reps400m = Math.ceil(remainingMeters / 400);
+
+                // Διόρθωση αν οι επαναλήψεις είναι μη ρεαλιστικές
+                if (reps400m > 5) {
+                    reps300m += Math.floor(reps400m / 2);
+                    reps400m = reps400m % 2;
+                }
+
+                const time200m = (q.pace / 5) * 60; // δευτ. για 200μ
+                const time300m = (q.pace / 3.333) * 60; // δευτ. για 300μ
+                const time400m = (q.pace / 2.5) * 60; // δευτ. για 400μ
+
+                return {
+                    day: q.day,
+                    type: q.type,
+                    description: `${q.type} (${reps200m > 0 ? `${reps200m} × 200μ @ ${time200m.toFixed(1)} δευτ.` : ''}${reps300m > 0 ? `${reps200m > 0 ? ', ' : ''}${reps300m} × 300μ @ ${time300m.toFixed(1)} δευτ.` : ''}${reps400m > 0 ? `${reps200m > 0 || reps300m > 0 ? ', ' : ''}${reps400m} × 400μ @ ${time400m.toFixed(1)} δευτ.` : ''}, ${(q.pace * 60).toFixed(2)} δευτ./χλμ) + Ζ/Α (${easyPace.toFixed(3)} λεπτά/χλμ)`,
+                    minutes: minutes + wuCdMinutes,
+                    distance: distance + wuCdDistance,
+                    points: q.points + 4
+                };
+            });
+
+            // Δημιουργία προγράμματος
+            const days = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'];
+            const programRows = days.map(day => {
+                if (day === 'Κυριακή') {
+                    return `<tr>
+                        <td>${day}</td>
+                        <td>Long Run (Easy, ${easyPace.toFixed(3)} λεπτά/χλμ)</td>
+                        <td>${longRunMinutes.toFixed(1)} λεπτά</td>
+                        <td>${longRunDistance.toFixed(2)} χλμ</td>
+                        <td>${longRunPoints.toFixed(1)}</td>
+                    </tr>`;
+                }
+                const qualityWorkout = qualityWorkouts.find(q => q.day === day);
+                if (qualityWorkout) {
+                    return `<tr>
+                        <td>${day}</td>
+                        <td>${qualityWorkout.description}</td>
+                        <td>${qualityWorkout.minutes.toFixed(1)} λεπτά</td>
+                        <td>${qualityWorkout.distance.toFixed(2)} χλμ</td>
+                        <td>${qualityWorkout.points.toFixed(1)}</td>
+                    </tr>`;
+                }
+                return `<tr>
+                    <td>${day}</td>
+                    <td>Easy Run (${easyPace.toFixed(3)} λεπτά/χλμ)</td>
+                    <td>${easyRunMinutes.toFixed(1)} λεπτά</td>
+                    <td>${easyRunDistance.toFixed(2)} χλμ</td>
+                    <td>${easyRunPointsPerDay.toFixed(1)}</td>
+                </tr>`;
+            });
+
+            const totalDistance = easyRunDistance * (7 - qualityWorkouts.length - 1) +
+                qualityWorkouts.reduce((sum, q) => sum + q.distance, 0) +
+                longRunDistance;
+
+            const program = `
+                <table>
+                    <tr>
+                        <th>Ημέρα</th>
+                        <th>Τύπος Προπόνησης</th>
+                        <th>Διάρκεια</th>
+                        <th>Απόσταση</th>
+                        <th>Πόντοι</th>
+                    </tr>
+                    ${programRows.join('')}
+                </table>
+                <p><strong>Συνολική Εβδομαδιαία Απόσταση:</strong> ${totalDistance.toFixed(2)} χλμ</p>
+            `;
+
+            // Εμφάνιση προγράμματος
+            document.getElementById('programOutput').innerHTML = program;
+        }
+    </script>
+</body>
+</html>
