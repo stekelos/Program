@@ -66,6 +66,10 @@
         tr:nth-child(even) {
             background: #f9f9f9;
         }
+        .error {
+            color: red;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -74,22 +78,24 @@
         <h2>Εισαγωγή Δεδομένων</h2>
         <label for="points">Συνολικοί Πόντοι Εβδομάδας:</label>
         <input type="number" id="points" placeholder="π.χ. 60" required>
-        <label for="easyPace">Ρυθμός Easy Run (λεπτά/χλμ, π.χ. 5.833):</label>
-        <input type="number" step="0.001" id="easyPace" placeholder="π.χ. 5.833" required>
-        <label for="intervalPace">Ρυθμός Interval (λεπτά/χλμ, π.χ. 4.183):</label>
-        <input type="number" step="0.001" id="intervalPace" placeholder="π.χ. 4.183" required>
-        <label for="repetitionPace">Ρυθμός Repetition (λεπτά/χλμ, π.χ. 3.95):</label>
-        <input type="number" step="0.001" id="repetitionPace" placeholder="π.χ. 3.95" required>
-        <label for="fastRepetitionPace">Ρυθμός Fast Repetition (λεπτά/χλμ, π.χ. 3.583):</label>
-        <input type="number" step="0.001" id="fastRepetitionPace" placeholder="π.χ. 3.583" required>
-        <label for="thresholdPace">Ρυθμός Threshold (λεπτά/χλμ, π.χ. 4.533):</label>
-        <input type="number" step="0.001" id="thresholdPace" placeholder="π.χ. 4.533" required>
+        <label for="easyPace">Ρυθμός Easy Run (λλ:δδ, π.χ. 5:50):</label>
+        <input type="text" id="easyPace" placeholder="π.χ. 5:50" pattern="\d+:\d{2}" required>
+        <label for="intervalPace">Ρυθμός Interval (λλ:δδ, π.χ. 4:11):</label>
+        <input type="text" id="intervalPace" placeholder="π.χ. 4:11" pattern="\d+:\d{2}" required>
+        <label for="repetitionPace">Ρυθμός Repetition (λλ:δδ, π.χ. 3:57):</label>
+        <input type="text" id="repetitionPace" placeholder="π.χ. 3:57" pattern="\d+:\d{2}" required>
+        <label for="fastRepetitionPace">Ρυθμός Fast Repetition (λλ:δδ, π.χ. 3:35):</label>
+        <input type="text" id="fastRepetitionPace" placeholder="π.χ. 3:35" pattern="\d+:\d{2}" required>
+        <label for="thresholdPace">Ρυθμός Threshold (λλ:δδ, π.χ. 4:32):</label>
+        <input type="text" id="thresholdPace" placeholder="π.χ. 4:32" pattern="\d+:\d{2}" required>
         <label for="intervalPoints">Πόντοι Interval (μέγ. 12):</label>
-        <input type="number" id="intervalPoints" placeholder="π.χ. 12" max="12" required>
+        <input type="number" id="intervalPoints" placeholder="π.χ. 12" max="12" min="0" required>
         <label for="repetitionPoints">Πόντοι Repetition (μέγ. 12):</label>
-        <input type="number" id="repetitionPoints" placeholder="π.χ. 0" max="12" required>
+        <input type="number" id="repetitionPoints" placeholder="π.χ. 0" max="12" min="0" required>
         <label for="fastRepetitionPoints">Πόντοι Fast Repetition (μέγ. 12):</label>
-        <input type="number" id="fastRepetitionPoints" placeholder="π.χ. 0" max="12" required>
+        <input type="number" id="fastRepetitionPoints" placeholder="π.χ. 0" max="12" min="0" required>
+        <label for="thresholdPoints">Πόντοι Threshold (μέγ. 12):</label>
+        <input type="number" id="thresholdPoints" placeholder="π.χ. 0" max="12" min="0" required>
         <button onclick="generateProgram()">Δημιουργία Προγράμματος</button>
     </div>
     <div class="output-section" id="output">
@@ -98,32 +104,65 @@
     </div>
 
     <script>
+        // Συνάρτηση μετατροπής λλ:δδ σε δεκαδικά λεπτά
+        function parsePace(pace) {
+            const [minutes, seconds] = pace.split(':').map(Number);
+            return minutes + seconds / 60;
+        }
+
+        // Συνάρτηση στρογγυλοποίησης δευτερολέπτων στο πλησιέστερο 0.5 ή ακέραιο
+        function roundSeconds(seconds) {
+            const decimal = seconds % 1;
+            if (decimal === 0) return seconds; // Ακέραιος
+            if (decimal <= 0.25) return Math.floor(seconds) + 0.5;
+            if (decimal <= 0.75) return Math.floor(seconds) + 0.5;
+            return Math.ceil(seconds);
+        }
+
         function generateProgram() {
             // Λήψη εισόδων
             const points = parseFloat(document.getElementById('points').value);
-            const easyPace = parseFloat(document.getElementById('easyPace').value);
-            const intervalPace = parseFloat(document.getElementById('intervalPace').value);
-            const repetitionPace = parseFloat(document.getElementById('repetitionPace').value);
-            const fastRepetitionPace = parseFloat(document.getElementById('fastRepetitionPace').value);
-            const thresholdPace = parseFloat(document.getElementById('thresholdPace').value);
+            const easyPaceInput = document.getElementById('easyPace').value;
+            const intervalPaceInput = document.getElementById('intervalPace').value;
+            const repetitionPaceInput = document.getElementById('repetitionPace').value;
+            const fastRepetitionPaceInput = document.getElementById('fastRepetitionPace').value;
+            const thresholdPaceInput = document.getElementById('thresholdPace').value;
             const intervalPoints = parseFloat(document.getElementById('intervalPoints').value);
             const repetitionPoints = parseFloat(document.getElementById('repetitionPoints').value);
             const fastRepetitionPoints = parseFloat(document.getElementById('fastRepetitionPoints').value);
+            const thresholdPoints = parseFloat(document.getElementById('thresholdPoints').value);
 
             // Έλεγχος εγκυρότητας
-            if (!points || !easyPace || !intervalPace || !repetitionPace || !fastRepetitionPace || !thresholdPace ||
-                isNaN(intervalPoints) || isNaN(repetitionPoints) || isNaN(fastRepetitionPoints)) {
-                alert('Παρακαλώ συμπληρώστε όλα τα πεδία.');
+            const paceRegex = /^\d+:\d{2}$/;
+            if (!points || !easyPaceInput || !intervalPaceInput || !repetitionPaceInput || 
+                !fastRepetitionPaceInput || !thresholdPaceInput ||
+                isNaN(intervalPoints) || isNaN(repetitionPoints) || 
+                isNaN(fastRepetitionPoints) || isNaN(thresholdPoints) ||
+                !paceRegex.test(easyPaceInput) || !paceRegex.test(intervalPaceInput) ||
+                !paceRegex.test(repetitionPaceInput) || !paceRegex.test(fastRepetitionPaceInput) ||
+                !paceRegex.test(thresholdPaceInput)) {
+                document.getElementById('programOutput').innerHTML = 
+                    '<p class="error">Παρακαλώ συμπληρώστε όλα τα πεδία σωστά (ρυθμοί σε μορφή λλ:δδ).</p>';
                 return;
             }
-            if (intervalPoints > 12 || repetitionPoints > 12 || fastRepetitionPoints > 12) {
-                alert('Οι πόντοι για κάθε ποιοτική προπόνηση δεν πρέπει να υπερβαίνουν τους 12.');
+            if (intervalPoints > 12 || repetitionPoints > 12 || 
+                fastRepetitionPoints > 12 || thresholdPoints > 12) {
+                document.getElementById('programOutput').innerHTML = 
+                    '<p class="error">Οι πόντοι για κάθε ποιοτική προπόνηση δεν πρέπει να υπερβαίνουν τους 12.</p>';
                 return;
             }
-            if (intervalPoints + repetitionPoints + fastRepetitionPoints > 24) {
-                alert('Το άθροισμα των πόντων για ποιοτικές προπονήσεις δεν πρέπει να υπερβαίνει τους 24.');
+            if (intervalPoints + repetitionPoints + fastRepetitionPoints + thresholdPoints > 24) {
+                document.getElementById('programOutput').innerHTML = 
+                    '<p class="error">Το άθροισμα των πόντων για ποιοτικές προπονήσεις δεν πρέπει να υπερβαίνει τους 24.</p>';
                 return;
             }
+
+            // Μετατροπή ρυθμών σε δεκαδικά λεπτά
+            const easyPace = parsePace(easyPaceInput);
+            const intervalPace = parsePace(intervalPaceInput);
+            const repetitionPace = parsePace(repetitionPaceInput);
+            const fastRepetitionPace = parsePace(fastRepetitionPaceInput);
+            const thresholdPace = parsePace(thresholdPaceInput);
 
             // Υπολογισμοί Long Run
             const longRunPoints = points * 0.2;
@@ -139,28 +178,41 @@
                     type: 'Interval',
                     points: intervalPoints,
                     pace: intervalPace,
-                    pointsPerMinute: 1
+                    pointsPerMinute: 1,
+                    splits: [200, 300, 400]
                 });
                 totalQualityPoints += intervalPoints + 4; // +4 για ζέσταμα + αποθεραπεία
             }
-            if (repetitionPoints > 0) {
+            if (thresholdPoints > 0) {
                 qualityDays.push({
                     day: 'Πέμπτη',
-                    type: 'Repetition',
-                    points: repetitionPoints,
-                    pace: repetitionPace,
-                    pointsPerMinute: 1.5
+                    type: 'Threshold',
+                    points: thresholdPoints,
+                    pace: thresholdPace,
+                    pointsPerMinute: 0.6,
+                    splits: [1200, 1600, 2000]
                 });
-                totalQualityPoints += repetitionPoints + 4;
+                totalQualityPoints += thresholdPoints + 4;
             } else if (fastRepetitionPoints > 0) {
                 qualityDays.push({
                     day: 'Πέμπτη',
                     type: 'Fast Repetition',
                     points: fastRepetitionPoints,
                     pace: fastRepetitionPace,
-                    pointsPerMinute: 2
+                    pointsPerMinute: 2,
+                    splits: [200, 300, 400]
                 });
                 totalQualityPoints += fastRepetitionPoints + 4;
+            } else if (repetitionPoints > 0) {
+                qualityDays.push({
+                    day: 'Πέμπτη',
+                    type: 'Repetition',
+                    points: repetitionPoints,
+                    pace: repetitionPace,
+                    pointsPerMinute: 1.5,
+                    splits: [200, 300, 400]
+                });
+                totalQualityPoints += repetitionPoints + 4;
             }
 
             // Υπολογισμοί Easy Runs
@@ -179,27 +231,44 @@
                 const distance = minutes / q.pace;
                 const totalMeters = distance * 1000;
 
-                // Υποδιαιρέσεις 200μ, 300μ, 400μ
-                let reps200m = Math.floor(totalMeters / 900); // Προσαρμογή για ισορροπία
-                let remainingMeters = totalMeters - reps200m * 200;
-                let reps300m = Math.floor(remainingMeters / 600);
-                remainingMeters -= reps300m * 300;
-                let reps400m = Math.ceil(remainingMeters / 400);
+                let description = '';
+                if (q.type === 'Threshold') {
+                    // Υποδιαιρέσεις 1200μ, 1600μ, 2000μ
+                    let reps1200m = Math.floor(totalMeters / 4800); // Προσαρμογή
+                    let remainingMeters = totalMeters - reps1200m * 1200;
+                    let reps1600m = Math.floor(remainingMeters / 3200);
+                    remainingMeters -= reps1600m * 1600;
+                    let reps2000m = Math.ceil(remainingMeters / 2000);
 
-                // Διόρθωση αν οι επαναλήψεις είναι μη ρεαλιστικές
-                if (reps400m > 5) {
-                    reps300m += Math.floor(reps400m / 2);
-                    reps400m = reps400m % 2;
+                    const time1200m = roundSeconds((q.pace * 1.2) * 60); // δευτ. για 1200μ
+                    const time1600m = roundSeconds((q.pace * 1.6) * 60); // δευτ. για 1600μ
+                    const time2000m = roundSeconds((q.pace * 2.0) * 60); // δευτ. για 2000μ
+
+                    description = `${q.type} (${reps1200m > 0 ? `${reps1200m} × 1200μ @ ${time1200m.toFixed(1)} δευτ.` : ''}${reps1600m > 0 ? `${reps1200m > 0 ? ', ' : ''}${reps1600m} × 1600μ @ ${time1600m.toFixed(1)} δευτ.` : ''}${reps2000m > 0 ? `${reps1200m > 0 || reps1600m > 0 ? ', ' : ''}${reps2000m} × 2000μ @ ${time2000m.toFixed(1)} δευτ.` : ''}, ${(q.pace * 60).toFixed(2)} δευτ./χλμ) + Ζ/Α (${easyPace.toFixed(3)} λεπτά/χλμ)`;
+                } else {
+                    // Υποδιαιρέσεις 200μ, 300μ, 400μ
+                    let reps200m = Math.floor(totalMeters / 900);
+                    let remainingMeters = totalMeters - reps200m * 200;
+                    let reps300m = Math.floor(remainingMeters / 600);
+                    remainingMeters -= reps300m * 300;
+                    let reps400m = Math.ceil(remainingMeters / 400);
+
+                    if (reps400m > 5) {
+                        reps300m += Math.floor(reps400m / 2);
+                        reps400m = reps400m % 2;
+                    }
+
+                    const time200m = roundSeconds((q.pace / 5) * 60); // δευτ. για 200μ
+                    const time300m = roundSeconds((q.pace / 3.333) * 60); // δευτ. για 300μ
+                    const time400m = roundSeconds((q.pace / 2.5) * 60); // δευτ. για 400μ
+
+                    description = `${q.type} (${reps200m > 0 ? `${reps200m} × 200μ @ ${time200m.toFixed(1)} δευτ.` : ''}${reps300m > 0 ? `${reps200m > 0 ? ', ' : ''}${reps300m} × 300μ @ ${time300m.toFixed(1)} δευτ.` : ''}${reps400m > 0 ? `${reps200m > 0 || reps300m > 0 ? ', ' : ''}${reps400m} × 400μ @ ${time400m.toFixed(1)} δευτ.` : ''}, ${(q.pace * 60).toFixed(2)} δευτ./χλμ) + Ζ/Α (${easyPace.toFixed(3)} λεπτά/χλμ)`;
                 }
-
-                const time200m = (q.pace / 5) * 60; // δευτ. για 200μ
-                const time300m = (q.pace / 3.333) * 60; // δευτ. για 300μ
-                const time400m = (q.pace / 2.5) * 60; // δευτ. για 400μ
 
                 return {
                     day: q.day,
                     type: q.type,
-                    description: `${q.type} (${reps200m > 0 ? `${reps200m} × 200μ @ ${time200m.toFixed(1)} δευτ.` : ''}${reps300m > 0 ? `${reps200m > 0 ? ', ' : ''}${reps300m} × 300μ @ ${time300m.toFixed(1)} δευτ.` : ''}${reps400m > 0 ? `${reps200m > 0 || reps300m > 0 ? ', ' : ''}${reps400m} × 400μ @ ${time400m.toFixed(1)} δευτ.` : ''}, ${(q.pace * 60).toFixed(2)} δευτ./χλμ) + Ζ/Α (${easyPace.toFixed(3)} λεπτά/χλμ)`,
+                    description: description,
                     minutes: minutes + wuCdMinutes,
                     distance: distance + wuCdDistance,
                     points: q.points + 4
@@ -223,7 +292,7 @@
                     return `<tr>
                         <td>${day}</td>
                         <td>${qualityWorkout.description}</td>
-                        <td>${qualityWorkout.minutes.toFixed(1)} λεπτά</td>
+ geometricalWorkout.minutes.toFixed(1)} λεπτά</td>
                         <td>${qualityWorkout.distance.toFixed(2)} χλμ</td>
                         <td>${qualityWorkout.points.toFixed(1)}</td>
                     </tr>`;
