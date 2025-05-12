@@ -130,294 +130,110 @@
     </div>
 
     <script>
-        // Συνάρτηση μετατροπής λλ:δδ σε δεκαδικά λεπτά
-        function parsePace(pace) {
-            const trimmedPace = pace.trim();
-            if (!trimmedPace) return NaN;
-            let [minutes, seconds] = trimmedPace.split(':').map(s => s.trim());
-            minutes = parseInt(minutes, 10);
-            seconds = parseInt(seconds, 10);
-            if (isNaN(minutes) || isNaN(seconds) || seconds >= 60) {
-                // Δοκιμή διόρθωσης, π.χ. 5:5 → 5:05
-                if (seconds < 10 && trimmedPace.match(/^\d+:\d$/)) {
-                    seconds = parseInt(seconds.toString().padStart(2, '0'), 10);
-                } else {
-                    return NaN;
-                }
+function parsePace(pace) {
+    const [min, sec] = pace.trim().split(':').map(Number);
+    return isNaN(min) || isNaN(sec) || sec >= 60 ? NaN : min + sec / 60;
+}
+
+function formatPace(decimalMinutes) {
+    const minutes = Math.floor(decimalMinutes);
+    const seconds = Math.round((decimalMinutes - minutes) * 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+// Βοηθητική συνάρτηση για ελεγχόμενη τοποθέτηση ποιοτικών με διάστημα τουλάχιστον 1 μέρα
+function distributeQualityDays(days, qualities) {
+    const selectedDays = [...days];
+    const assigned = [];
+    for (let i = 0; i < qualities.length; i++) {
+        // Εύρεση μέρας που απέχει από προηγούμενες
+        let foundDay = null;
+        for (const day of selectedDays) {
+            if (assigned.every(a => Math.abs(days.indexOf(a.day) - days.indexOf(day)) >= 2)) {
+                foundDay = day;
+                break;
             }
-            return minutes + seconds / 60;
         }
-
-        // Συνάρτηση μετατροπής δεκαδικών λεπτών σε λλ:δδ
-        function formatPace(decimalMinutes) {
-            const minutes = Math.floor(decimalMinutes);
-            const seconds = Math.round((decimalMinutes - minutes) * 60);
-            return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        if (!foundDay) {
+            foundDay = selectedDays.shift();
+        } else {
+            selectedDays.splice(selectedDays.indexOf(foundDay), 1);
         }
+        assigned.push({ ...qualities[i], day: foundDay });
+    }
+    return assigned;
+}
 
-        // Συνάρτηση μετατροπής δευτερολέπτων σε λλ:δδ.δ
-        function formatSeconds(seconds) {
-            const minutes = Math.floor(seconds / 60);
-            const remainingSeconds = seconds % 60;
-            return `${minutes}:${remainingSeconds.toFixed(1).padStart(4, '0')}`;
-        }
+function generateProgram() {
+    const points = parseFloat(document.getElementById('points').value);
+    const trainingDays = Array.from(document.querySelectorAll('input[name="trainingDays"]:checked')).map(i => i.value);
+    const easyPace = parsePace(document.getElementById('easyPace').value);
+    const intervalPace = parsePace(document.getElementById('intervalPace').value);
+    const repetitionPace = parsePace(document.getElementById('repetitionPace').value);
+    const fastRepetitionPace = parsePace(document.getElementById('fastRepetitionPace').value);
+    const thresholdPace = parsePace(document.getElementById('thresholdPace').value);
+    const intervalPoints = parseFloat(document.getElementById('intervalPoints').value);
+    const repetitionPoints = parseFloat(document.getElementById('repetitionPoints').value);
+    const fastRepetitionPoints = parseFloat(document.getElementById('fastRepetitionPoints').value);
+    const thresholdPoints = parseFloat(document.getElementById('thresholdPoints').value);
 
-        // Συνάρτηση στρογγυλοποίησης δευτερολέπτων στο πλησιέστερο 0.5 ή ακέραιο
-        function roundSeconds(seconds) {
-            const decimal = seconds % 1;
-            if (decimal === 0) return seconds; // Ακέραιος
-            if (decimal <= 0.25) return Math.floor(seconds) + 0.5;
-            if (decimal <= 0.75) return Math.floor(seconds) + 0.5;
-            return Math.ceil(seconds);
-        }
+    // Βασικός έλεγχος
+    if (trainingDays.length < 3) return displayError("Επιλέξτε τουλάχιστον 3 μέρες.");
+    if ([easyPace, intervalPace, repetitionPace, fastRepetitionPace, thresholdPace].some(isNaN)) return displayError("Λανθασμένη μορφή ρυθμών.");
 
-        function generateProgram() {
-            // Λήψη εισόδων
-            const points = parseFloat(document.getElementById('points').value);
-            const trainingDays = Array.from(document.querySelectorAll('input[name="trainingDays"]:checked'))
-                .map(input => input.value);
-            const easyPaceInput = document.getElementById('easyPace').value;
-            const intervalPaceInput = document.getElementById('intervalPace').value;
-            const repetitionPaceInput = document.getElementById('repetitionPace').value;
-            const fastRepetitionPaceInput = document.getElementById('fastRepetitionPace').value;
-            const thresholdPaceInput = document.getElementById('thresholdPace').value;
-            const intervalPoints = parseFloat(document.getElementById('intervalPoints').value);
-            const repetitionPoints = parseFloat(document.getElementById('repetitionPoints').value);
-            const fastRepetitionPoints = parseFloat(document.getElementById('fastRepetitionPoints').value);
-            const thresholdPoints = parseFloat(document.getElementById('thresholdPoints').value);
+    const longRunPoints = points * 0.2;
+    const qualityWorkouts = [
+        { type: 'Interval', points: intervalPoints, pace: intervalPace, pPerMin: 1 },
+        { type: 'Threshold', points: thresholdPoints, pace: thresholdPace, pPerMin: 0.6 },
+        { type: 'Fast Repetition', points: fastRepetitionPoints, pace: fastRepetitionPace, pPerMin: 2 },
+        { type: 'Repetition', points: repetitionPoints, pace: repetitionPace, pPerMin: 1.5 }
+    ].filter(q => q.points > 0);
 
-            // Έλεγχος εγκυρότητας
-            const easyPace = parsePace(easyPaceInput);
-            const intervalPace = parsePace(intervalPaceInput);
-            const repetitionPace = parsePace(repetitionPaceInput);
-            const fastRepetitionPace = parsePace(fastRepetitionPaceInput);
-            const thresholdPace = parsePace(thresholdPaceInput);
+    if (qualityWorkouts.length > trainingDays.length - 2) return displayError("Πάρα πολλές ποιοτικές προπονήσεις για τις διαθέσιμες μέρες.");
 
-            const errors = [];
-            const warnings = [];
-            if (isNaN(points) || points <= 0) errors.push('Οι συνολικοί πόντοι πρέπει να είναι θετικός αριθμός (π.χ. 60).');
-            if (trainingDays.length < 3) errors.push('Επιλέξτε τουλάχιστον 3 μέρες για προπόνηση, ώστε να χωρέσουν long run, ποιοτική, και τουλάχιστον 1 easy run.');
-            if (isNaN(easyPace)) errors.push('Ο ρυθμός Easy Run πρέπει να είναι σε μορφή λλ:δδ (π.χ. 5:50).');
-            if (isNaN(intervalPace)) errors.push('Ο ρυθμός Interval πρέπει να είναι σε μορφή λλ:δδ (π.χ. 4:11).');
-            if (isNaN(repetitionPace)) errors.push('Ο ρυθμός Repetition πρέπει να είναι σε μορφή λλ:δδ (π.χ. 3:57).');
-            if (isNaN(fastRepetitionPace)) errors.push('Ο ρυθμός Fast Repetition πρέπει να είναι σε μορφή λλ:δδ (π.χ. 3:35).');
-            if (isNaN(thresholdPace)) errors.push('Ο ρυθμός Threshold πρέπει να είναι σε μορφή λλ:δδ (π.χ. 4:32).');
-            if (isNaN(intervalPoints) || intervalPoints < 0 || intervalPoints > 12) errors.push('Οι πόντοι Interval πρέπει να είναι μεταξύ 0 και 12.');
-            if (isNaN(repetitionPoints) || repetitionPoints < 0 || repetitionPoints > 12) errors.push('Οι πόντοι Repetition πρέπει να είναι μεταξύ 0 και 12.');
-            if (isNaN(fastRepetitionPoints) || fastRepetitionPoints < 0 || fastRepetitionPoints > 12) errors.push('Οι πόντοι Fast Repetition πρέπει να είναι μεταξύ 0 και 12.');
-            if (isNaN(thresholdPoints) || thresholdPoints < 0 || thresholdPoints > 12) errors.push('Οι πόντοι Threshold πρέπει να είναι μεταξύ 0 και 12.');
-            const totalQualityPointsInput = intervalPoints + repetitionPoints + fastRepetitionPoints + thresholdPoints;
-            if (totalQualityPointsInput > 24) {
-                errors.push('Το άθροισμα των πόντων για ποιοτικές προπονήσεις δεν πρέπει να υπερβαίνει τους 24.');
-            }
-            const qualityTypesCount = [intervalPoints, repetitionPoints, fastRepetitionPoints, thresholdPoints].filter(p => p > 0).length;
-            if (qualityTypesCount > trainingDays.length - 2) {
-                warnings.push(`Προειδοποίηση: Έχετε επιλέξει ${qualityTypesCount} ποιοτικές προπονήσεις, αλλά μόνο ${trainingDays.length} μέρες. Μόνο οι πρώτες ${trainingDays.length - 2} ποιοτικές θα περιληφθούν.`);
-            }
+    // Κατανομή ποιοτικών με διαφορά
+    const qualityDays = distributeQualityDays(trainingDays.slice(0, -1), qualityWorkouts);
 
-            if (errors.length > 0) {
-                document.getElementById('programOutput').innerHTML = 
-                    `<p class="error">${errors.join('<br>')}</p>`;
-                return;
-            }
+    // Υπολογισμός πόντων ποιοτικών
+    let qualityTotalPoints = 0;
+    qualityDays.forEach(q => qualityTotalPoints += q.points + 4);
 
-            // Υπολογισμοί Long Run
-            const longRunPoints = points * 0.2;
-            const longRunMinutes = longRunPoints / 0.2;
-            const longRunDistance = longRunMinutes / easyPace;
+    // Easy runs
+    const easyDays = trainingDays.filter(d => !qualityDays.some(q => q.day === d) && d !== trainingDays[trainingDays.length - 1]);
+    const easyPoints = points - longRunPoints - qualityTotalPoints;
+    const easyPerDayPoints = easyPoints / easyDays.length;
 
-            // Υπολογισμοί Ποιοτικών
-            const qualityDays = [];
-            let totalQualityPoints = 0;
-            let qualityDayIndex = 0;
-            const availableDays = trainingDays.slice(0, -1); // Εξαιρείται η τελευταία μέρα για long run
-            if (intervalPoints > 0 && qualityDayIndex < availableDays.length) {
-                qualityDays.push({
-                    day: availableDays[qualityDayIndex++],
-                    type: 'Interval',
-                    points: intervalPoints,
-                    pace: intervalPace,
-                    pointsPerMinute: 1,
-                    splits: [200, 300, 400]
-                });
-                totalQualityPoints += intervalPoints + 4; // +4 για ζέσταμα + αποθεραπεία
-            }
-            if (thresholdPoints > 0 && qualityDayIndex < availableDays.length) {
-                qualityDays.push({
-                    day: availableDays[qualityDayIndex++],
-                    type: 'Threshold',
-                    points: thresholdPoints,
-                    pace: thresholdPace,
-                    pointsPerMinute: 0.6,
-                    splits: [1200, 1600, 2000]
-                });
-                totalQualityPoints += thresholdPoints + 4;
-            }
-            if (fastRepetitionPoints > 0 && qualityDayIndex < availableDays.length) {
-                qualityDays.push({
-                    day: availableDays[qualityDayIndex++],
-                    type: 'Fast Repetition',
-                    points: fastRepetitionPoints,
-                    pace: fastRepetitionPace,
-                    pointsPerMinute: 2,
-                    splits: [200, 300, 400]
-                });
-                totalQualityPoints += fastRepetitionPoints + 4;
-            }
-            if (repetitionPoints > 0 && qualityDayIndex < availableDays.length) {
-                qualityDays.push({
-                    day: availableDays[qualityDayIndex++],
-                    type: 'Repetition',
-                    points: repetitionPoints,
-                    pace: repetitionPace,
-                    pointsPerMinute: 1.5,
-                    splits: [200, 300, 400]
-                });
-                totalQualityPoints += repetitionPoints + 4;
-            }
+    if (easyPerDayPoints < 4) return displayError(`Οι πόντοι easy (${easyPerDayPoints.toFixed(1)}) είναι χαμηλοί.`);
 
-            // Υπολογισμοί Easy Runs
-            const easyDaysCount = trainingDays.length - qualityDays.length - 1; // -1 για long run
-            if (easyDaysCount < 0) {
-                document.getElementById('programOutput').innerHTML = 
-                    `<p class="error">Δεν υπάρχουν αρκετές μέρες για να κατανεμηθούν οι προπονήσεις.</p>`;
-                return;
-            }
-            const easyDaysPoints = points - longRunPoints - totalQualityPoints;
-            const easyRunPointsPerDay = easyDaysPoints / easyDaysCount;
-            if (easyRunPointsPerDay < 4) {
-                document.getElementById('programOutput').innerHTML = 
-                    `<p class="error">Οι πόντοι για τις easy μέρες (${easyRunPointsPerDay.toFixed(1)}) είναι μικρότεροι από το ελάχιστο (4). Αυξήστε τους συνολικούς πόντους ή μειώστε τους πόντους ποιοτικών.</p>`;
-                return;
-            }
-            const easyRunMinutes = easyRunPointsPerDay / 0.2;
-            const easyRunDistance = easyRunMinutes / easyPace;
+    // Δημιουργία τελικού πίνακα
+    let program = `<table><tr><th>Ημέρα</th><th>Τύπος</th><th>Λεπτά</th><th>Χιλιόμετρα</th><th>Ρυθμός</th></tr>`;
 
-            // Ζέσταμα + Αποθεραπεία
-            const wuCdMinutes = 20; // 10 + 10 λεπτά
-            const wuCdDistance = wuCdMinutes / easyPace;
+    // Ποιοτικές
+    qualityDays.forEach(q => {
+        const workoutMins = q.points / q.pPerMin;
+        const distance = workoutMins / q.pace;
+        program += `<tr><td>${q.day}</td><td>${q.type}</td><td>${workoutMins.toFixed(0)}</td><td>${distance.toFixed(2)}</td><td>${formatPace(q.pace)}</td></tr>`;
+    });
 
-            // Υπολογισμός υποδιαιρέσεων
-            const qualityWorkouts = qualityDays.map(q => {
-                const minutes = q.points / q.pointsPerMinute;
-                const distance = minutes / q.pace;
-                const totalMeters = distance * 1000;
+    // Easy
+    easyDays.forEach(d => {
+        const mins = easyPerDayPoints / 0.2;
+        const dist = mins / easyPace;
+        program += `<tr><td>${d}</td><td>Easy</td><td>${mins.toFixed(0)}</td><td>${dist.toFixed(2)}</td><td>${formatPace(easyPace)}</td></tr>`;
+    });
 
-                let description = '';
-                if (q.type === 'Threshold') {
-                    // Υποδιαιρέσεις 1200μ, 1600μ, 2000μ
-                    let reps1200m = Math.floor(totalMeters / 4800);
-                    let remainingMeters = totalMeters - reps1200m * 1200;
-                    let reps1600m = Math.floor(remainingMeters / 3200);
-                    remainingMeters -= reps1600m * 1600;
-                    let reps2000m = Math.ceil(remainingMeters / 2000);
+    // Long run
+    const longRunMins = longRunPoints / 0.2;
+    const longRunDist = longRunMins / easyPace;
+    program += `<tr><td>${trainingDays[trainingDays.length - 1]}</td><td>Long Run</td><td>${longRunMins.toFixed(0)}</td><td>${longRunDist.toFixed(2)}</td><td>${formatPace(easyPace)}</td></tr>`;
 
-                    // Περιορισμός επαναλήψεων για ρεαλιστικότητα
-                    if (reps2000m > 2) {
-                        reps1600m += Math.floor(reps2000m / 2);
-                        reps2000m = reps2000m % 2;
-                    }
+    program += `</table>`;
+    document.getElementById('programOutput').innerHTML = program;
+}
 
-                    const time1200m = roundSeconds((q.pace * 1.2) * 60); // δευτ. για 1200μ
-                    const time1600m = roundSeconds((q.pace * 1.6) * 60); // δευτ. για 1600μ
-                    const time2000m = roundSeconds((q.pace * 2.0) * 60); // δευτ. για 2000μ
-
-                    const formatTime1200m = `${Math.floor(time1200m / 60)}:${(time1200m % 60).toFixed(0).padStart(2, '0')}`;
-                    const formatTime1600m = `${Math.floor(time1600m / 60)}:${(time1600m % 60).toFixed(0).padStart(2, '0')}`;
-                    const formatTime2000m = `${Math.floor(time2000m / 60)}:${(time2000m % 60).toFixed(0).padStart(2, '0')}`;
-
-                    description = `${q.type} (${reps1200m > 0 ? `${reps1200m} × 1200μ @ ${formatTime1200m}` : ''}${reps1600m > 0 ? `${reps1200m > 0 ? ', ' : ''}${reps1600m} × 1600μ @ ${formatTime1600m}` : ''}${reps2000m > 0 ? `${reps1200m > 0 || reps1600m > 0 ? ', ' : ''}${reps2000m} × 2000μ @ ${formatTime2000m}` : ''}, ${formatPace(q.pace)}/χλμ) + Ζ/Α (${formatPace(easyPace)}/χλμ)`;
-                } else {
-                    // Υποδιαιρέσεις 200μ, 300μ, 400μ
-                    let reps200m = Math.floor(totalMeters / 900);
-                    let remainingMeters = totalMeters - reps200m * 200;
-                    let reps300m = Math.floor(remainingMeters / 600);
-                    remainingMeters -= reps300m * 300;
-                    let reps400m = Math.ceil(remainingMeters / 400);
-
-                    // Περιορισμός επαναλήψεων για ρεαλιστικότητα
-                    if (reps400m > 5) {
-                        reps300m += Math.floor(reps400m / 2);
-                        reps400m = reps400m % 2;
-                    }
-                    if (reps200m > 8) {
-                        reps300m += Math.floor(reps200m / 3);
-                        reps200m = reps200m % 3;
-                    }
-
-                    const time200m = roundSeconds((q.pace / 5) * 60); // δευτ. για 200μ
-                    const time300m = roundSeconds((q.pace / 3.333) * 60); // δευτ. για 300μ
-                    const time400m = roundSeconds((q.pace / 2.5) * 60); // δευτ. για 400μ
-
-                    const formatTime200m = formatSeconds(time200m);
-                    const formatTime300m = formatSeconds(time300m);
-                    const formatTime400m = formatSeconds(time400m);
-
-                    description = `${q.type} (${reps200m > 0 ? `${reps200m} × 200μ @ ${formatTime200m}` : ''}${reps300m > 0 ? `${reps200m > 0 ? ', ' : ''}${reps300m} × 300μ @ ${formatTime300m}` : ''}${reps400m > 0 ? `${reps200m > 0 || reps300m > 0 ? ', ' : ''}${reps400m} × 400μ @ ${formatTime400m}` : ''}, ${formatPace(q.pace)}/χλμ) + Ζ/Α (${formatPace(easyPace)}/χλμ)`;
-                }
-
-                return {
-                    day: q.day,
-                    type: q.type,
-                    description: description,
-                    minutes: minutes + wuCdMinutes,
-                    distance: distance + wuCdDistance,
-                    points: q.points + 4
-                };
-            });
-
-            // Δημιουργία προγράμματος
-            const programRows = trainingDays.map((day, index) => {
-                if (index === trainingDays.length - 1) {
-                    return `<tr>
-                        <td>${day}</td>
-                        <td>Long Run (Easy, ${formatPace(easyPace)}/χλμ)</td>
-                        <td>${longRunMinutes.toFixed(1)} λεπτά</td>
-                        <td>${longRunDistance.toFixed(2)} χλμ</td>
-                        <td>${Math.round(longRunPoints)}</td>
-                    </tr>`;
-                }
-                const qualityWorkout = qualityWorkouts.find(q => q.day === day);
-                if (qualityWorkout) {
-                    return `<tr>
-                        <td>${day}</td>
-                        <td>${qualityWorkout.description}</td>
-                        <td>${qualityWorkout.minutes.toFixed(1)} λεπτά</td>
-                        <td>${qualityWorkout.distance.toFixed(2)} χλμ</td>
-                        <td>${Math.round(qualityWorkout.points)}</td>
-                    </tr>`;
-                }
-                return `<tr>
-                    <td>${day}</td>
-                    <td>Easy Run (${formatPace(easyPace)}/χλμ)</td>
-                    <td>${easyRunMinutes.toFixed(1)} λεπτά</td>
-                    <td>${easyRunDistance.toFixed(2)} χλμ</td>
-                    <td>${Math.round(easyRunPointsPerDay)}</td>
-                </tr>`;
-            });
-
-            const totalDistance = easyRunDistance * easyDaysCount +
-                qualityWorkouts.reduce((sum, q) => sum + q.distance, 0) +
-                longRunDistance;
-
-            const program = `
-                <table>
-                    <tr>
-                        <th>Ημέρα</th>
-                        <th>Τύπος Προπόνησης</th>
-                        <th>Διάρκεια</th>
-                        <th>Απόσταση</th>
-                        <th>Πόντοι</th>
-                    </tr>
-                    ${programRows.join('')}
-                </table>
-                <p><strong>Συνολική Εβδομαδιαία Απόσταση:</strong> ${totalDistance.toFixed(2)} χλμ</p>
-                ${warnings.length > 0 ? `<p class="warning">${warnings.join('<br>')}</p>` : ''}
-            `;
-
-            // Εμφάνιση προγράμματος
-            document.getElementById('programOutput').innerHTML = program;
-        }
-    </script>
+function displayError(msg) {
+    document.getElementById('programOutput').innerHTML = `<p class="error">${msg}</p>`;
+}
+</script>
 </body>
 </html>
